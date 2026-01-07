@@ -1,0 +1,4 @@
+project_id = "vjcigwowqykzsrpxlndu"
+
+[functions.subdomain-scan]
+verify_jwt = false
