@@ -64,6 +64,18 @@ export interface FilterOptions {
   cloudProvider: string | null;
 }
 
+export interface AnalysisResult {
+  riskLevel: string;
+  summary: string;
+  findings: {
+    type: string;
+    severity: string;
+    description: string;
+    subdomains: string[];
+  }[];
+  recommendations: string[];
+}
+
 export const defaultScanResult: ScanResult = {
   id: "",
   targetDomain: "",

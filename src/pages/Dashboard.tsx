@@ -21,6 +21,18 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+interface ScanRecord {
+  id: string;
+  target_domain: string;
+  status: string;
+  total_subdomains: number | null;
+  active_subdomains: number | null;
+  anomalies: number | null;
+  cloud_assets: number | null;
+  takeover_vulnerable: number | null;
+  created_at: string;
+}
+
 interface DashboardStats {
   totalScans: number;
   totalSubdomains: number;
@@ -28,7 +40,7 @@ interface DashboardStats {
   totalTakeovers: number;
   totalCloudAssets: number;
   activeSubdomains: number;
-  recentScans: any[];
+  recentScans: ScanRecord[];
 }
 
 const Dashboard = () => {

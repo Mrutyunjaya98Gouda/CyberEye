@@ -11,12 +11,30 @@ import { Card } from "@/components/ui/card";
 import { lazy, Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const InteractiveGraph = lazy(() => import("@/components/dashboard/InteractiveGraph").then(module => ({ default: module.InteractiveGraph })));
-const JsonView = lazy(() => import("@/components/dashboard/JsonView").then(module => ({ default: module.JsonView })));
-const ExportPanel = lazy(() => import("@/components/dashboard/ExportPanel").then(module => ({ default: module.ExportPanel })));
-const ReportGenerator = lazy(() => import("@/components/dashboard/ReportGenerator").then(module => ({ default: module.ReportGenerator })));
-const ScanComparison = lazy(() => import("@/components/dashboard/ScanComparison").then(module => ({ default: module.ScanComparison })));
-const AIAssistant = lazy(() => import("@/components/dashboard/AIAssistant").then(module => ({ default: module.AIAssistant })));
+const InteractiveGraph = lazy(() =>
+  import("@/components/dashboard/InteractiveGraph").then((module) => ({
+    default: module.InteractiveGraph,
+  }))
+);
+const JsonView = lazy(() =>
+  import("@/components/dashboard/JsonView").then((module) => ({ default: module.JsonView }))
+);
+const ExportPanel = lazy(() =>
+  import("@/components/dashboard/ExportPanel").then((module) => ({ default: module.ExportPanel }))
+);
+const ReportGenerator = lazy(() =>
+  import("@/components/dashboard/ReportGenerator").then((module) => ({
+    default: module.ReportGenerator,
+  }))
+);
+const ScanComparison = lazy(() =>
+  import("@/components/dashboard/ScanComparison").then((module) => ({
+    default: module.ScanComparison,
+  }))
+);
+const AIAssistant = lazy(() =>
+  import("@/components/dashboard/AIAssistant").then((module) => ({ default: module.AIAssistant }))
+);
 import {
   Select,
   SelectContent,
@@ -27,7 +45,7 @@ import {
 import { useScans } from "@/hooks/useScans";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { FilterOptions, ViewMode, defaultScanResult } from "@/types/subdomain";
+import { FilterOptions, ViewMode, defaultScanResult, ScanOptions } from "@/types/subdomain";
 import {
   Globe,
   Activity,
@@ -69,10 +87,11 @@ const Index = () => {
     minScore: 0,
     cloudProvider: null,
   });
-  const [recentScans, setRecentScans] = useState<any[]>([]);
+  const [recentScans, setRecentScans] = useState<
+    { id: string; target_domain: string; created_at: string; status: string }[]
+  >([]);
   const [selectedPreviousScan, setSelectedPreviousScan] = useState<string>("");
 
-  /* eslint-disable-next-line react-hooks/exhaustive-deps */
   const fetchRecentScans = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
@@ -93,8 +112,8 @@ const Index = () => {
 
   const currentScanResult = scanResult || defaultScanResult;
 
-  const handleScan = async (domain: string) => {
-    await startScan(domain);
+  const handleScan = async (domain: string, options?: ScanOptions) => {
+    await startScan(domain, options);
     await fetchRecentScans();
   };
 

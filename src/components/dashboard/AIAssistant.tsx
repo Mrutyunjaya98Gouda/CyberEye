@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { Subdomain } from "@/types/subdomain";
+import { Subdomain, AnalysisResult } from "@/types/subdomain";
 import {
   Brain,
   Sparkles,
@@ -30,18 +30,6 @@ interface AIAssistantProps {
   domain: string;
   subdomains: Subdomain[];
   onPredictionsReady?: (predictions: string[]) => void;
-}
-
-interface AnalysisResult {
-  riskLevel: string;
-  summary: string;
-  findings: {
-    type: string;
-    severity: string;
-    description: string;
-    subdomains: string[];
-  }[];
-  recommendations: string[];
 }
 
 export function AIAssistant({ domain, subdomains, onPredictionsReady }: AIAssistantProps) {

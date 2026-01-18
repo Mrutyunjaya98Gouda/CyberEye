@@ -119,7 +119,6 @@ export function SubdomainTable({ subdomains }: SubdomainTableProps) {
             {sortedSubdomains.map((subdomain) => (
               <Fragment key={subdomain.id}>
                 <tr
-                  key={subdomain.id}
                   className={cn(
                     "hover:bg-secondary/30 transition-colors cursor-pointer",
                     expandedRow === subdomain.id && "bg-secondary/20"

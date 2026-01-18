@@ -8,7 +8,7 @@ const corsHeaders = {
 interface PredictRequest {
   domain: string;
   existingSubdomains?: string[];
-  type: 'predict' | 'analyze' | 'recommend';
+  type: "predict" | "analyze" | "recommend";
 }
 
 const AI_GATEWAY_URL = "https://api.openai.com/v1/chat/completions";
@@ -24,7 +24,7 @@ async function callAI(prompt: string, systemPrompt: string): Promise<string> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
@@ -59,12 +59,12 @@ Rules:
 - Output between 20-50 predictions
 - Do not include explanations, just the subdomain prefixes`;
 
-  const existingPrefixes = existing.map(s => s.replace(`.${domain}`, '')).slice(0, 20);
+  const existingPrefixes = existing.map((s) => s.replace(`.${domain}`, "")).slice(0, 20);
 
   const prompt = `Domain: ${domain}
 
 Already discovered subdomains:
-${existingPrefixes.join('\n')}
+${existingPrefixes.join("\n")}
 
 Based on this domain and the patterns in existing subdomains, predict additional likely subdomain prefixes that might exist. Consider:
 1. Common naming conventions (api-v2, staging-new, etc.)
@@ -79,16 +79,23 @@ Output only the subdomain prefixes, one per line:`;
 
   // Parse the response to extract subdomain predictions
   const predictions = response
-    .split('\n')
-    .map(line => line.trim().toLowerCase())
-    .filter(line => line && !line.includes(' ') && line.length < 64)
-    .filter(line => !existing.some(e => e.startsWith(line + '.')))
+    .split("\n")
+    .map((line) => line.trim().toLowerCase())
+    .filter((line) => line && !line.includes(" ") && line.length < 64)
+    .filter((line) => !existing.some((e) => e.startsWith(line + ".")))
     .slice(0, 50);
 
   return predictions;
 }
 
-async function analyzeSubdomains(domain: string, subdomains: string[]): Promise<any> {
+interface AnalysisResult {
+  riskLevel: string;
+  summary: string;
+  findings: { type: string; severity: string; description: string; subdomains: string[] }[];
+  recommendations: string[];
+}
+
+async function analyzeSubdomains(domain: string, subdomains: string[]): Promise<AnalysisResult> {
   const systemPrompt = `You are a senior penetration tester and attack surface analyst. 
 Analyze the provided subdomain list and provide security insights.
 
@@ -110,7 +117,7 @@ Output format must be valid JSON with this structure:
   const prompt = `Analyze the attack surface for domain: ${domain}
 
 Discovered subdomains:
-${subdomains.slice(0, 100).join('\n')}
+${subdomains.slice(0, 100).join("\n")}
 
 Provide a security analysis including:
 1. Overall risk assessment
@@ -135,7 +142,7 @@ Provide a security analysis including:
     riskLevel: "medium",
     summary: response.slice(0, 500),
     findings: [],
-    recommendations: ["Review subdomain security posture manually"]
+    recommendations: ["Review subdomain security posture manually"],
   };
 }
 
@@ -147,16 +154,16 @@ Output only the recommendations as a numbered list, one per line.`;
 Total subdomains: ${subdomains.length}
 
 Sample subdomains:
-${subdomains.slice(0, 30).join('\n')}
+${subdomains.slice(0, 30).join("\n")}
 
 Provide 5-10 specific, actionable security recommendations based on this attack surface:`;
 
   const response = await callAI(prompt, systemPrompt);
 
   return response
-    .split('\n')
-    .map(line => line.replace(/^\d+[\.\)]\s*/, '').trim())
-    .filter(line => line.length > 10)
+    .split("\n")
+    .map((line) => line.replace(/^\d+[.)\s]*/, "").trim())
+    .filter((line) => line.length > 10)
     .slice(0, 10);
 }
 
@@ -168,13 +175,13 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { domain, existingSubdomains = [], type = 'predict' }: PredictRequest = await req.json();
+    const { domain, existingSubdomains = [], type = "predict" }: PredictRequest = await req.json();
 
     if (!domain) {
-      return new Response(
-        JSON.stringify({ error: "Domain is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Domain is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     console.log(`Processing ${type} request for domain: ${domain}`);
@@ -182,19 +189,22 @@ const handler = async (req: Request): Promise<Response> => {
     let result: any;
 
     switch (type) {
-      case 'predict':
+      case "predict": {
         const predictions = await predictSubdomains(domain, existingSubdomains);
         result = { predictions, count: predictions.length };
         break;
+      }
 
-      case 'analyze':
+      case "analyze": {
         result = await analyzeSubdomains(domain, existingSubdomains);
         break;
+      }
 
-      case 'recommend':
+      case "recommend": {
         const recommendations = await getRecommendations(domain, existingSubdomains);
         result = { recommendations };
         break;
+      }
 
       default:
         return new Response(
@@ -203,16 +213,15 @@ const handler = async (req: Request): Promise<Response> => {
         );
     }
 
-    return new Response(
-      JSON.stringify({ success: true, ...result }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ success: true, ...result }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error: any) {
     console.error("Error in AI predict function:", error.message);
-    return new Response(
-      JSON.stringify({ error: "AI prediction failed. Please try again." }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "AI prediction failed. Please try again." }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 };
 
