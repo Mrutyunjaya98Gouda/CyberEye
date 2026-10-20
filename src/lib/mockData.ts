@@ -43,7 +43,48 @@ function randomTechnologies(): string[] {
 }
 
 function generateSubdomain(domain: string, index: number): Subdomain {
-  const prefixes = [
+  const githubSpecific = [
+    "api",
+    "auth",
+    "docs",
+    "support",
+    "status",
+    "gist",
+    "copilot",
+    "enterprise",
+    "raw",
+    "pages",
+    "cdn",
+    "assets",
+    "vpn",
+    "dev",
+    "staging",
+    "ssh",
+    "git",
+    "npm",
+    "registry",
+    "cloud",
+    "billing",
+    "identity",
+    "portal",
+    "admin",
+    "internal",
+    "backup",
+    "collector",
+    "telemetry",
+    "preview",
+    "release",
+    "metrics",
+    "security",
+    "audit",
+    "webhooks",
+    "graphql",
+    "cdn-cgi",
+    "download",
+    "storage",
+  ];
+
+  const defaultPrefixes = [
     "www",
     "api",
     "app",
@@ -81,6 +122,8 @@ function generateSubdomain(domain: string, index: number): Subdomain {
     "checkout",
     "store",
   ];
+
+  const prefixes = domain.toLowerCase().includes("github") ? githubSpecific : defaultPrefixes;
 
   const name = `${prefixes[index % prefixes.length]}.${domain}`;
   const isAnomaly = ["backup", "old", "temp", "internal"].includes(

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getLocalScans } from "@/lib/localScanStore";
 import {
   Activity,
   Globe,
@@ -43,19 +44,33 @@ interface DashboardStats {
   recentScans: ScanRecord[];
 }
 
+function computeStats(scans: ScanRecord[]): DashboardStats {
+  const totalScans = scans.length;
+  const totalSubdomains = scans.reduce((acc, s) => acc + (s.total_subdomains || 0), 0);
+  const totalAnomalies = scans.reduce((acc, s) => acc + (s.anomalies || 0), 0);
+  const totalTakeovers = scans.reduce((acc, s) => acc + (s.takeover_vulnerable || 0), 0);
+  const totalCloudAssets = scans.reduce((acc, s) => acc + (s.cloud_assets || 0), 0);
+  const activeSubdomains = scans.reduce((acc, s) => acc + (s.active_subdomains || 0), 0);
+
+  return {
+    totalScans,
+    totalSubdomains,
+    totalAnomalies,
+    totalTakeovers,
+    totalCloudAssets,
+    activeSubdomains,
+    recentScans: scans.slice(0, 5),
+  };
+}
+
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalScans: 0,
-    totalSubdomains: 0,
-    totalAnomalies: 0,
-    totalTakeovers: 0,
-    totalCloudAssets: 0,
-    activeSubdomains: 0,
-    recentScans: [],
+  const [stats, setStats] = useState<DashboardStats>(() => {
+    const local = getLocalScans() as any as ScanRecord[];
+    return computeStats(local || []);
   });
-  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -70,35 +85,24 @@ const Dashboard = () => {
   }, [user]);
 
   const fetchDashboardStats = async () => {
+    // 1. Immediately update with local storage to avoid any UI stutter
+    const local = getLocalScans() as any as ScanRecord[];
+    if (local && local.length > 0) {
+      setStats(computeStats(local));
+    }
+
+    // 2. Revalidate with Supabase if online
     try {
-      // Fetch all scans
-      const { data: scans, error: scansError } = await supabase
-        .from("scans")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data: scans, error: scansError } = (await Promise.race([
+        supabase.from("scans").select("*").order("created_at", { ascending: false }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 800)),
+      ])) as any;
 
-      if (scansError) throw scansError;
-
-      // Calculate totals
-      const totalScans = scans?.length || 0;
-      const totalSubdomains = scans?.reduce((acc, s) => acc + (s.total_subdomains || 0), 0) || 0;
-      const totalAnomalies = scans?.reduce((acc, s) => acc + (s.anomalies || 0), 0) || 0;
-      const totalTakeovers = scans?.reduce((acc, s) => acc + (s.takeover_vulnerable || 0), 0) || 0;
-      const totalCloudAssets = scans?.reduce((acc, s) => acc + (s.cloud_assets || 0), 0) || 0;
-      const activeSubdomains = scans?.reduce((acc, s) => acc + (s.active_subdomains || 0), 0) || 0;
-
-      setStats({
-        totalScans,
-        totalSubdomains,
-        totalAnomalies,
-        totalTakeovers,
-        totalCloudAssets,
-        activeSubdomains,
-        recentScans: scans?.slice(0, 5) || [],
-      });
-    } catch (error: any) {
-      console.error("Error fetching dashboard stats:", error);
-      toast.error("Failed to load dashboard");
+      if (!scansError && scans && scans.length > 0) {
+        setStats(computeStats(scans));
+      }
+    } catch {
+      // Supabase is offline or timed out; local stats are already active
     } finally {
       setLoadingStats(false);
     }

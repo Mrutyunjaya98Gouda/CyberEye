@@ -45,6 +45,7 @@ import {
 import { useScans } from "@/hooks/useScans";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getLocalScans } from "@/lib/localScanStore";
 import { FilterOptions, ViewMode, defaultScanResult, ScanOptions } from "@/types/subdomain";
 import {
   Globe,
@@ -89,19 +90,52 @@ const Index = () => {
   });
   const [recentScans, setRecentScans] = useState<
     { id: string; target_domain: string; created_at: string; status: string }[]
-  >([]);
+  >(() => {
+    const local = getLocalScans();
+    return (local || []).map((s) => ({
+      id: s.id,
+      target_domain: s.target_domain,
+      created_at: s.created_at,
+      status: s.status,
+    }));
+  });
   const [selectedPreviousScan, setSelectedPreviousScan] = useState<string>("");
 
   const fetchRecentScans = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("scans")
-      .select("id, target_domain, created_at, status")
-      .eq("user_id", user.id)
-      .eq("status", "completed")
-      .order("created_at", { ascending: false })
-      .limit(10);
-    setRecentScans(data || []);
+    const localScans = getLocalScans();
+    if (localScans && localScans.length > 0) {
+      setRecentScans(
+        localScans
+          .filter((s) => s.user_id === user.id || !s.user_id)
+          .map((s) => ({
+            id: s.id,
+            target_domain: s.target_domain,
+            created_at: s.created_at,
+            status: s.status,
+          }))
+      );
+    }
+
+    try {
+      const { data } = (await Promise.race([
+        supabase
+          .from("scans")
+          .select("id, target_domain, created_at, status")
+          .eq("user_id", user.id)
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(10),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 800)),
+      ])) as any;
+
+      if (data && data.length > 0) {
+        setRecentScans(data);
+        return;
+      }
+    } catch {
+      // fallback
+    }
   }, [user]);
 
   useEffect(() => {

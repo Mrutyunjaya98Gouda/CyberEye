@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getLocalScans, deleteLocalScan } from "@/lib/localScanStore";
 import { Clock, Globe, Trash2, Filter, ArrowUpDown, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { ScanDetails } from "@/components/scan/ScanDetails";
@@ -36,8 +37,8 @@ type FilterStatus = "all" | "completed" | "running" | "failed";
 const History = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [scans, setScans] = useState<ScanRecord[]>([]);
-  const [loadingScans, setLoadingScans] = useState(true);
+  const [scans, setScans] = useState<ScanRecord[]>(() => (getLocalScans() as any) || []);
+  const [loadingScans, setLoadingScans] = useState(() => (getLocalScans()?.length || 0) === 0);
   const [selectedScan, setSelectedScan] = useState<ScanRecord | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -58,34 +59,49 @@ const History = () => {
   }, [user]);
 
   const fetchScans = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("scans")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setScans((data as ScanRecord[]) || []);
-    } catch (error: any) {
-      console.error("Error fetching scans:", error);
-      toast.error("Failed to load scan history");
-    } finally {
+    // 1. Immediately refresh from local storage so there is 0ms delay
+    const localScans = getLocalScans();
+    if (localScans && localScans.length > 0) {
+      setScans(localScans as any);
       setLoadingScans(false);
     }
+
+    try {
+      const { data, error } = (await Promise.race([
+        supabase.from("scans").select("*").order("created_at", { ascending: false }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 800)),
+      ])) as any;
+
+      if (!error && data && data.length > 0) {
+        setScans((data as ScanRecord[]) || []);
+        setLoadingScans(false);
+        return;
+      }
+    } catch {
+      // fallback
+    }
+
+    if (!localScans || localScans.length === 0) {
+      setScans([]);
+    }
+    setLoadingScans(false);
   };
 
   const deleteScan = async (scanId: string) => {
     try {
-      const { error } = await supabase.from("scans").delete().eq("id", scanId);
-
-      if (error) throw error;
-
-      setScans(scans.filter((s) => s.id !== scanId));
-      toast.success("Scan deleted");
-    } catch (error: any) {
-      console.error("Error deleting scan:", error);
-      toast.error("Failed to delete scan");
+      await Promise.race([
+        supabase.from("scans").delete().eq("id", scanId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1000)),
+      ]).catch((_e) => {
+        void _e;
+      });
+    } catch (_e) {
+      void _e;
     }
+
+    deleteLocalScan(scanId);
+    setScans((prev) => prev.filter((s) => s.id !== scanId));
+    toast.success("Scan deleted");
   };
 
   const filteredAndSortedScans = useMemo(() => {
@@ -169,7 +185,10 @@ const History = () => {
         <div className="flex flex-col sm:flex-row gap-4 items-center bg-card/30 p-4 rounded-lg border border-border/50">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={filterStatus} onValueChange={(value: FilterStatus) => setFilterStatus(value)}>
+            <Select
+              value={filterStatus}
+              onValueChange={(value: FilterStatus) => setFilterStatus(value)}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
@@ -229,10 +248,13 @@ const History = () => {
                   <div className="space-y-2">
                     <div className="flex items-center gap-3">
                       <Globe className="h-5 w-5 text-primary" />
-                      <span className="font-mono text-lg text-foreground hover:underline cursor-pointer" onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewDetails(scan);
-                      }}>
+                      <span
+                        className="font-mono text-lg text-foreground hover:underline cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetails(scan);
+                        }}
+                      >
                         {scan.target_domain}
                       </span>
                       {getStatusBadge(scan.status)}
@@ -307,11 +329,7 @@ const History = () => {
           </div>
         )}
 
-        <ScanDetails
-          scan={selectedScan}
-          open={detailsOpen}
-          onOpenChange={setDetailsOpen}
-        />
+        <ScanDetails scan={selectedScan} open={detailsOpen} onOpenChange={setDetailsOpen} />
       </main>
     </div>
   );

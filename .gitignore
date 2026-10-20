@@ -31,3 +31,7 @@ dist-ssr
 # Testing
 coverage
 .nyc_output
+
+# Keys and keystores
+*.key
+*keystore*

@@ -8,11 +8,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 export function Header() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isHome = location.pathname === "/";
+  const isDashboard = location.pathname === "/dashboard";
+  const isHistory = location.pathname === "/history";
 
   const handleSignOut = async () => {
     await signOut();
@@ -39,27 +45,44 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-6">
-            <nav className="hidden md:flex items-center gap-4 text-sm">
+            <nav className="hidden md:flex items-center gap-2 text-sm">
               <button
                 onClick={() => navigate("/")}
-                className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+                className={cn(
+                  "transition-all px-3 py-1.5 rounded-md flex items-center gap-2 font-mono text-xs",
+                  isHome
+                    ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_12px_rgba(var(--primary),0.2)] font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                )}
               >
                 <div className="relative">
-                  <div className="absolute -top-1 -right-1 h-2 w-2 bg-primary rounded-full animate-pulse" />
+                  {isHome && (
+                    <div className="absolute -top-1 -right-1 h-1.5 w-1.5 bg-primary rounded-full animate-pulse" />
+                  )}
                   <Eye className="h-4 w-4" />
                 </div>
                 <span>Home</span>
               </button>
               <button
                 onClick={() => navigate("/dashboard")}
-                className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+                className={cn(
+                  "transition-all px-3 py-1.5 rounded-md flex items-center gap-2 font-mono text-xs",
+                  isDashboard
+                    ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_12px_rgba(var(--primary),0.2)] font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                )}
               >
                 <BarChart3 className="h-4 w-4" />
                 <span>Dashboard</span>
               </button>
               <button
                 onClick={() => navigate("/history")}
-                className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+                className={cn(
+                  "transition-all px-3 py-1.5 rounded-md flex items-center gap-2 font-mono text-xs",
+                  isHistory
+                    ? "bg-primary/15 text-primary border border-primary/30 shadow-[0_0_12px_rgba(var(--primary),0.2)] font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                )}
               >
                 <Radar className="h-4 w-4" />
                 <span>History</span>

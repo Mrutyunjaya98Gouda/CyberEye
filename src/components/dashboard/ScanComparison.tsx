@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { getLocalScans, getLocalSubdomains } from "@/lib/localScanStore";
 import { useAuth } from "@/hooks/useAuth";
 import { GitCompare, Plus, Minus, Equal, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -63,21 +64,35 @@ export function ScanComparison() {
   }, [isOpen, user]);
 
   const fetchScans = async () => {
-    const { data, error } = await supabase
-      .from("scans")
-      .select(
-        "id, target_domain, created_at, total_subdomains, active_subdomains, anomalies, cloud_assets, takeover_vulnerable"
-      )
-      .eq("status", "completed")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (error) {
-      toast.error("Failed to load scans");
-      return;
+    const local = getLocalScans();
+    if (local && local.length > 0) {
+      setScans(local as any);
     }
 
-    setScans(data || []);
+    try {
+      const { data, error } = (await Promise.race([
+        supabase
+          .from("scans")
+          .select(
+            "id, target_domain, created_at, total_subdomains, active_subdomains, anomalies, cloud_assets, takeover_vulnerable"
+          )
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(20),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 800)),
+      ])) as any;
+
+      if (!error && data && data.length > 0) {
+        setScans(data);
+        return;
+      }
+    } catch {
+      // Supabase is offline; local scans are active
+    }
+
+    if (!local || local.length === 0) {
+      setScans([]);
+    }
   };
 
   const compareScans = async () => {
@@ -90,13 +105,27 @@ export function ScanComparison() {
 
     try {
       // Fetch subdomains for both scans
-      const [{ data: subs1 }, { data: subs2 }] = await Promise.all([
-        supabase.from("subdomains").select("name").eq("scan_id", scan1),
-        supabase.from("subdomains").select("name").eq("scan_id", scan2),
-      ]);
+      let s1: any[] = [];
+      let s2: any[] = [];
+      try {
+        const [{ data: subs1 }, { data: subs2 }] = (await Promise.race([
+          Promise.all([
+            supabase.from("subdomains").select("name").eq("scan_id", scan1),
+            supabase.from("subdomains").select("name").eq("scan_id", scan2),
+          ]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500)),
+        ])) as any;
+        s1 = subs1 || [];
+        s2 = subs2 || [];
+      } catch (_e) {
+        void _e;
+      }
 
-      const names1 = new Set((subs1 || []).map((s) => s.name));
-      const names2 = new Set((subs2 || []).map((s) => s.name));
+      if (s1.length === 0) s1 = getLocalSubdomains(scan1);
+      if (s2.length === 0) s2 = getLocalSubdomains(scan2);
+
+      const names1 = new Set(s1.map((s) => s.name));
+      const names2 = new Set(s2.map((s) => s.name));
 
       // Calculate differences
       const added = [...names2].filter((n) => !names1.has(n));
